@@ -28,17 +28,27 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 
-#define SCREEN_WIDTH 128 // OLED display width, in pixels
-#define SCREEN_HEIGHT 32 // OLED display height, in pixels
+/* Declarations and initializations */
 
 // Declaration for an SSD1306 display connected to I2C (SDA, SCL pins)
 #define OLED_RESET     4 // Reset pin # (or -1 if sharing Arduino reset pin)
+#define SCREEN_WIDTH 128 // OLED display width, in pixels
+#define SCREEN_HEIGHT 32 // OLED display height, in pixels
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
+// Current and voltage sensor
 INA219 monitor;
 
-// RTC modul I2C address: 0x68
-uRTCLib rtc(0x68);
+// RTC modul
+#define RTC_I2C_addr 0x68
+uRTCLib rtc(RTC_I2C_addr);
+
+// SD card modul
+#define SDCARD_CHIP_SELECT 4
+
+
+/* Global variables */
+
 // RTC global variables
 uint8_t rtc_second = 0;
 uint8_t rtc_minute = 0;
@@ -47,9 +57,11 @@ uint8_t rtc_day = 0;
 uint8_t rtc_month = 0;
 uint8_t rtc_year = 0;
 
+// Current sensor variables
 float f_BusVoltage;
 
-const int chipSelect = 4;
+
+// General variables
 String TimeStampString = "";
 String VoltString = "";
 String CurrentString = "";
@@ -73,7 +85,7 @@ void setup()
   Serial.print("Initializing SD card...");
 
   // see if the card is present and can be initialized:
-  if (!SD.begin(chipSelect)) {
+  if (!SD.begin(SDCARD_CHIP_SELECT)) {
     Serial.println("Card failed, or not present");
     // don't do anything more:
     while (1);
