@@ -1,14 +1,14 @@
 /**********************************************
+** Arduino current meter and logger
+** Modueles used:
+**  - INA219, I2C
+**  - RTC, I2C
+**  - SSD1306 OLED dsiplay, I2C
+**  - SD card, SPI
 **********************************************/
 
 /*
-  SD card datalogger
 
- This example shows how to log data from three analog sensors
- to an SD card using the SD library.
-
- The circuit:
- * analog sensors on analog ins 0, 1, and 2
  * SD card attached to SPI bus as follows:
  ** MOSI - pin 11
  ** MISO - pin 12
@@ -37,7 +37,9 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
 INA219 monitor;
 
+// RTC modul I2C address: 0x68
 uRTCLib rtc(0x68);
+// RTC global variables
 uint8_t rtc_second = 0;
 uint8_t rtc_minute = 0;
 uint8_t rtc_hour = 0;
