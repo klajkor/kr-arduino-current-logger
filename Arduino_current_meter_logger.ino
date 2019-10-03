@@ -1,8 +1,8 @@
 /**********************************************
 ** Arduino current meter and logger
-** Modueles used:
+** Modules used:
 **  - INA219, I2C
-**  - RTC, I2C
+**  - DS3231 RTC, I2C
 **  - SSD1306 OLED dsiplay, I2C
 **  - SD card, SPI
 **********************************************/
@@ -14,7 +14,7 @@
  ** MISO - pin 12
  ** CLK - pin 13
  ** CS - pin 4
- 
+
  */
 
 #include <SPI.h>
@@ -39,7 +39,7 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 // Current and voltage sensor
 INA219 monitor;
 
-// RTC modul
+// DS3231 RTC modul
 #define RTC_I2C_addr 0x68
 uRTCLib rtc(RTC_I2C_addr);
 
@@ -101,7 +101,7 @@ void setup()
   delay(200);
   display.clearDisplay();
   display.display();
-  
+
 }
 
 void loop()
@@ -118,21 +118,21 @@ void loop()
   display.setTextSize(1);             // Normal 1:1 pixel scale
   display.setTextColor(WHITE);        // Draw white text
   display.setCursor(0,0);             // Start at top-left corner
-  
+
   Serial.println("******************");
-  
+
   Serial.print("raw shunt voltage: ");
   Serial.println(monitor.shuntVoltageRaw());
-  
+
   Serial.print("raw bus voltage:   ");
   Serial.println(monitor.busVoltageRaw());
-  
+
   Serial.println("--");
-  
+
   Serial.print("shunt voltage: ");
   Serial.print(monitor.shuntVoltage() * 1000, 4);
   Serial.println(" mV");
-  
+
   Serial.print("shunt current: ");
   Serial.print(monitor.shuntCurrent() * 1000, 4);
   Serial.println(" mA");
@@ -182,12 +182,12 @@ void loop()
   Serial.print("bus power:     ");
   Serial.print(monitor.busPower() * 1000, 4);
   Serial.println(" mW");
-  
+
   Serial.println(" ");
   Serial.println(" ");
 
   display.display();
-  
+
   delay(5000);
 
 }
