@@ -74,6 +74,7 @@ String CurrentString = "";
 void setup();
 void loop();
 bool Log_To_SD_card();
+void setTimeStampString();
 
 //setup()
 void setup()
@@ -121,6 +122,52 @@ void setup()
 }
 
 void loop()
+{
+  setTimeStampString();
+  
+  // clear display
+  display.clearDisplay();
+  display.setTextSize(1);             // Normal 1:1 pixel scale
+  display.setTextColor(WHITE);        // Draw white text
+  display.setCursor(0,0);             // Start at top-left corner
+  
+  //display time stamp
+  display.println(TimeStampString);
+  Serial.println(TimeStampString);
+
+  //measure voltage and current
+  f_ShuntCurrent_uA=monitor.shuntCurrent();
+  f_BusVoltage_V=monitor.busVoltage();
+  
+  //convert to text
+  CurrentString=String(f_ShuntCurrent_uA*1000, 4);
+  CurrentString+=F(" mA");
+  VoltString=String(f_BusVoltage_V,4);
+  VoltString+=F(" V");
+  
+  //display current
+  Serial.println(CurrentString);
+  display.println(CurrentString);
+
+  //display volt
+  Serial.println(VoltString);
+  display.println(VoltString);
+
+  display.display();
+  
+  Serial.print(F("SD log..."));
+  if (Log_To_SD_card()) {
+    Serial.println(F(" OK"));
+  }
+  else {
+    Serial.println(F(" failed!"));
+  }
+
+  delay(5000);
+
+}
+
+void setTimeStampString()
 {
   // get time stamp, convert to a string
   rtc.refresh();
@@ -181,49 +228,8 @@ void loop()
   }
   //display.print(rtc_second);
   TimeStampString += String(rtc_second);
-  
-  // clear display
-  display.clearDisplay();
-  display.setTextSize(1);             // Normal 1:1 pixel scale
-  display.setTextColor(WHITE);        // Draw white text
-  display.setCursor(0,0);             // Start at top-left corner
-  
-  //display time stamp
-  display.println(TimeStampString);
-  Serial.println(TimeStampString);
-
-  //measure voltage and current
-  f_ShuntCurrent_uA=monitor.shuntCurrent();
-  f_BusVoltage_V=monitor.busVoltage();
-  
-  //convert to text
-  CurrentString=String(f_ShuntCurrent_uA*1000, 4);
-  CurrentString+=F(" mA");
-  VoltString=String(f_BusVoltage_V,4);
-  VoltString+=F(" V");
-  
-  //display current
-  Serial.println(CurrentString);
-  display.println(CurrentString);
-
-  //display volt
-  Serial.println(VoltString);
-  display.println(VoltString);
-
-  display.display();
-  
-  Serial.print(F("SD log..."));
-  if (Log_To_SD_card()) {
-    Serial.println(F(" OK"));
-  }
-  else {
-    Serial.println(F(" failed!"));
-  }
-
-  delay(5000);
-
 }
-
+               
 bool Log_To_SD_card()
 {
   bool = FileOpenSucces = false;
