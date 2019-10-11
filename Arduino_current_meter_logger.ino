@@ -71,8 +71,8 @@ String VoltString = "";
 String CurrentString = "";
 
 // Function definitions
-void setup();
-void loop();
+//void setup();
+//void loop();
 bool Log_To_SD_card();
 void setTimeStampString();
 
@@ -80,10 +80,11 @@ void setTimeStampString();
 void setup()
 {
   Serial.begin(115200);
+  delay(1000);
   
   // SSD1306_SWITCHCAPVCC = generate display voltage from 3.3V internally
   //display.begin(SSD1306_SWITCHCAPVCC, OLED_I2C_ADDR);
-  Serial.print(F("SSD1306 init...");
+  Serial.print(F("SSD1306 init..."));
   if(!display.begin(SSD1306_SWITCHCAPVCC, OLED_I2C_ADDR)) {
     Serial.println(F(" failed!"));
     for(;;); // Don't proceed, loop forever
@@ -108,6 +109,7 @@ void setup()
   // calibrate() with default values D_SHUNT=0.1, D_V_BUS_MAX=32, D_V_SHUNT_MAX=0.2, D_I_MAX_EXPECTED=2
   // in order to work directly with ADAFruit's INA219B breakout
 
+  /*
   display.clearDisplay();
   display.display();
   display.setTextSize(1);             // Normal 1:1 pixel scale
@@ -115,6 +117,7 @@ void setup()
   display.setCursor(0,0);             // Start at top-left corner
   display.display();
   display.println(F("Init done"));
+  */
   delay(200);
   display.clearDisplay();
   display.display();
@@ -232,27 +235,33 @@ void setTimeStampString()
                
 bool Log_To_SD_card()
 {
-  bool = FileOpenSucces = false;
+  bool FileOpenSuccess = false;
+  
   String logFileName=DateStampString;
   logFileName += F(".txt");
   //open logfile for writing
+  
   File dataFile = SD.open(logFileName, FILE_WRITE);
   
   // if the file is available, write to it:
   if (dataFile) {
-    FileOpenSucces=true;
+    FileOpenSuccess=true;
   }
   else {
-    FileOpenSucces=false;
+    FileOpenSuccess=false;
   }
+  
   if (FileOpenSuccess) {
+    /*
     dataFile.print(TimeStampString);
     dataFile.print(F(";"));
     dataFile.print(VoltString);
     dataFile.print(F(";"));
     dataFile.print(CurrentString);
     dataFile.println(F(";"));
+    */
     dataFile.close();
   }
-  return FileOpenSucces;
+  
+  return FileOpenSuccess;
 }
