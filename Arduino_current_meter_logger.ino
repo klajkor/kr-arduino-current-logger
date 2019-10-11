@@ -60,41 +60,48 @@ uint8_t rtc_month = 0;
 uint8_t rtc_year = 0;
 
 // Current sensor variables
-float f_BusVoltage;
+float f_BusVoltage_V;
+float f_ShuntCurrent_uA;
 
 
 // General variables
 String TimeStampString = "";
+String DateStampString = "";
 String VoltString = "";
 String CurrentString = "";
 
+// Function definitions
+void setup();
+void loop();
+bool Log_To_SD_card();
+
+//setup()
 void setup()
 {
   Serial.begin(115200);
   
   // SSD1306_SWITCHCAPVCC = generate display voltage from 3.3V internally
   //display.begin(SSD1306_SWITCHCAPVCC, OLED_I2C_ADDR);
-  
+  Serial.print(F("SSD1306 init...");
   if(!display.begin(SSD1306_SWITCHCAPVCC, OLED_I2C_ADDR)) {
-    Serial.println(F("SSD1306 allocation failed - HALTED"));
+    Serial.println(F(" failed!"));
     for(;;); // Don't proceed, loop forever
   }
-  
-  Serial.println(F("SSD1306 init ok"));
+  Serial.println(F(" OK"));
   Serial.print(F("SD card init..."));
 
   // see if the card is present and can be initialized:
   if (!SD.begin(SDCARD_CHIP_SELECT)) {
-    Serial.println(F("Card failed, or not present -> HALTED"));
+    Serial.println(F(" failed"));
     // don't do anything more:
     while (1);
   }
-  Serial.println(F("done."));
+  Serial.println(F(" OK"));
 
   Wire.begin();
-  Serial.println(F("Wire.begin done"));
+  //Serial.println(F("Wire.begin done"));
   monitor.begin();
-  Serial.println(F("monitor.begin done"));
+  //Serial.println(F("INA219 begin done"));
   // begin calls:
   // configure() with default values RANGE_32V, GAIN_8_320MV, ADC_12BIT, ADC_12BIT, CONT_SH_BUS
   // calibrate() with default values D_SHUNT=0.1, D_V_BUS_MAX=32, D_V_SHUNT_MAX=0.2, D_I_MAX_EXPECTED=2
@@ -106,6 +113,7 @@ void setup()
   display.setTextColor(WHITE);        // Draw white text
   display.setCursor(0,0);             // Start at top-left corner
   display.display();
+  display.println(F("Init done"));
   delay(200);
   display.clearDisplay();
   display.display();
@@ -114,6 +122,7 @@ void setup()
 
 void loop()
 {
+  // get time stamp, convert to a string
   rtc.refresh();
   rtc_second = rtc.second();
   rtc_minute = rtc.minute();
@@ -124,6 +133,7 @@ void loop()
   
   TimeStampString = F("20");
   TimeStampString += String(rtc_year);
+  DateStampString=TimeStampString;
   TimeStampString += F(".");
   //TimeStampString = TimeStampString + String(rtc_year) + F(".");
   //display.print(F("20"));
@@ -132,17 +142,21 @@ void loop()
   if(rtc_month<10) {
     //display.print(F("0"));
     TimeStampString += F("0");
+    DateStampString += F("0");
   }
   TimeStampString += String(rtc_month);
+  DateStampString += String(rtc_month);
   //display.print(rtc_month);
   TimeStampString += F(".");
   //display.print(F("."));
   if(rtc_day<10) {
     //display.print(F("0"));
     TimeStampString += F("0");
+    DateStampString += F("0");
   }
   //display.print(rtc_day);
   TimeStampString += String(rtc_day);
+  DateStampString += String(rtc_day);
   //display.print(F(" "));
   TimeStampString += F(" ");
   if(rtc_hour<10) {
@@ -173,47 +187,66 @@ void loop()
   display.setTextSize(1);             // Normal 1:1 pixel scale
   display.setTextColor(WHITE);        // Draw white text
   display.setCursor(0,0);             // Start at top-left corner
+  
+  //display time stamp
   display.println(TimeStampString);
-
   Serial.println(TimeStampString);
 
-  Serial.print(F("raw shunt voltage: "));
-  Serial.println(monitor.shuntVoltageRaw());
+  //measure voltage and current
+  f_ShuntCurrent_uA=monitor.shuntCurrent();
+  f_BusVoltage_V=monitor.busVoltage();
+  
+  //convert to text
+  CurrentString=String(f_ShuntCurrent_uA*1000, 4);
+  CurrentString+=F(" mA");
+  VoltString=String(f_BusVoltage_V,4);
+  VoltString+=F(" V");
+  
+  //display current
+  Serial.println(CurrentString);
+  display.println(CurrentString);
 
-  Serial.print(F("raw bus voltage:   "));
-  Serial.println(monitor.busVoltageRaw());
-
-  Serial.println(F("--"));
-
-  Serial.print(F("shunt voltage: "));
-  Serial.print(monitor.shuntVoltage() * 1000, 4);
-  Serial.println(F(" mV"));
-
-  Serial.print(F("shunt current: "));
-  Serial.print(monitor.shuntCurrent() * 1000, 4);
-  Serial.println(F(" mA"));
-
-  //display.print(F("Current: "));
-  display.print(monitor.shuntCurrent()*1000, 4);
-  display.println(F(" mA"));
-
-  Serial.print(F("bus voltage:   "));
-  Serial.print(monitor.busVoltage(), 4);
-  Serial.println(F(" V"));
-
-  //display.print(F("Bus V: "));
-  display.print(monitor.busVoltage(), 4);
-  display.println(F(" V"));
-
-  Serial.print(F("bus power:     "));
-  Serial.print(monitor.busPower() * 1000, 4);
-  Serial.println(F(" mW"));
-
-  Serial.println(F(" "));
-  Serial.println(F(" "));
+  //display volt
+  Serial.println(VoltString);
+  display.println(VoltString);
 
   display.display();
+  
+  Serial.print(F("SD log..."));
+  if (Log_To_SD_card()) {
+    Serial.println(F(" OK"));
+  }
+  else {
+    Serial.println(F(" failed!"));
+  }
 
   delay(5000);
 
+}
+
+bool Log_To_SD_card()
+{
+  bool = FileOpenSucces = false;
+  String logFileName=DateStampString;
+  logFileName += F(".txt");
+  //open logfile for writing
+  File dataFile = SD.open(logFileName, FILE_WRITE);
+  
+  // if the file is available, write to it:
+  if (dataFile) {
+    FileOpenSucces=true;
+  }
+  else {
+    FileOpenSucces=false;
+  }
+  if (FileOpenSuccess) {
+    dataFile.print(TimeStampString);
+    dataFile.print(F(";"));
+    dataFile.print(VoltString);
+    dataFile.print(F(";"));
+    dataFile.print(CurrentString);
+    dataFile.println(F(";"));
+    dataFile.close();
+  }
+  return FileOpenSucces;
 }
