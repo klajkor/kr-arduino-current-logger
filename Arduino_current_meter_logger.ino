@@ -21,6 +21,7 @@
 */
 
 #include <Arduino.h>
+#include <math.h>
 #include <uRTCLib.h>
 #include <SD.h>
 #include <SPI.h>
@@ -65,10 +66,11 @@ float f_ShuntCurrent_uA;
 
 
 // General variables
-String TimeStampString = "";
-String DateStampString = "";
-String VoltString = "";
-String CurrentString = "";
+char TimeStampString[] = "2000.00.00 00:00:00";
+char DateStampString[] = "20009988";
+char logFileName[] = "20009988.txt";
+char VoltString[] ="99.999 V  ";
+char CurrentString[] = "9999.99 mA  ";
 
 // Function definitions
 //void setup();
@@ -121,7 +123,6 @@ void setup()
   delay(200);
   display.clearDisplay();
   display.display();
-
 }
 
 void loop()
@@ -137,24 +138,33 @@ void loop()
   //display time stamp
   display.println(TimeStampString);
   Serial.println(TimeStampString);
+  //Serial.println(DateStampString);
+  Serial.println(logFileName);
 
   //measure voltage and current
   f_ShuntCurrent_uA=monitor.shuntCurrent();
   f_BusVoltage_V=monitor.busVoltage();
   
   //convert to text
-  CurrentString=String(f_ShuntCurrent_uA*1000, 4);
-  CurrentString+=F(" mA");
-  VoltString=String(f_BusVoltage_V,4);
-  VoltString+=F(" V");
+  dtostrf((f_ShuntCurrent_uA*1000),8,3,CurrentString);
+  dtostrf(f_BusVoltage_V,6,3,VoltString);
+  //CurrentString=String(f_ShuntCurrent_uA*1000, 4);
+  //CurrentString+=F(" mA");
+  //VoltString="";
+  //VoltString=String(f_BusVoltage_V,4);
+  //VoltString+=F(" V");
   
   //display current
-  Serial.println(CurrentString);
-  display.println(CurrentString);
+  Serial.print(CurrentString);
+  Serial.println(F(" mA"));
+  display.print(CurrentString);
+  display.println(F(" mA"));
 
   //display volt
-  Serial.println(VoltString);
-  display.println(VoltString);
+  Serial.print(VoltString);
+  Serial.println(F(" V"));
+  display.print(VoltString);
+  display.println(F(" V"));
 
   display.display();
   
@@ -180,65 +190,41 @@ void setTimeStampString()
   rtc_day = rtc.day();
   rtc_month = rtc.month();
   rtc_year = rtc.year();
+
+  TimeStampString[2] = (char) ((rtc_year / 10)+0x30);
+  TimeStampString[3] = (char) ((rtc_year % 10)+0x30);
+  DateStampString[2] = TimeStampString[2];
+  DateStampString[3] = TimeStampString[3];
+  logFileName[2] = TimeStampString[2];
+  logFileName[3] = TimeStampString[3];
+  TimeStampString[5] = (char) ((rtc_month / 10)+0x30);
+  TimeStampString[6] = (char) ((rtc_month % 10)+0x30);
+  DateStampString[4] = TimeStampString[5];
+  DateStampString[5] = TimeStampString[6];
+  logFileName[4] = TimeStampString[5];
+  logFileName[5] = TimeStampString[6];
+  TimeStampString[8] = (char) ((rtc_day / 10)+0x30);
+  TimeStampString[9] = (char) ((rtc_day % 10)+0x30);
+  DateStampString[6] = TimeStampString[8];
+  DateStampString[7] = TimeStampString[9];
+  logFileName[6] = TimeStampString[8];
+  logFileName[7] = TimeStampString[9];
+
+  TimeStampString[11] = (char) ((rtc_hour / 10)+0x30);
+  TimeStampString[12] = (char) ((rtc_hour % 10)+0x30);
+  TimeStampString[14] = (char) ((rtc_minute / 10)+0x30);
+  TimeStampString[15] = (char) ((rtc_minute % 10)+0x30);
+  TimeStampString[17] = (char) ((rtc_second / 10)+0x30);
+  TimeStampString[18] = (char) ((rtc_second % 10)+0x30);
   
-  TimeStampString = F("20");
-  TimeStampString += String(rtc_year);
-  DateStampString=TimeStampString;
-  TimeStampString += F(".");
-  //TimeStampString = TimeStampString + String(rtc_year) + F(".");
-  //display.print(F("20"));
-  //display.print(rtc_year);
-  //display.print(F("."));
-  if(rtc_month<10) {
-    //display.print(F("0"));
-    TimeStampString += F("0");
-    DateStampString += F("0");
-  }
-  TimeStampString += String(rtc_month);
-  DateStampString += String(rtc_month);
-  //display.print(rtc_month);
-  TimeStampString += F(".");
-  //display.print(F("."));
-  if(rtc_day<10) {
-    //display.print(F("0"));
-    TimeStampString += F("0");
-    DateStampString += F("0");
-  }
-  //display.print(rtc_day);
-  TimeStampString += String(rtc_day);
-  DateStampString += String(rtc_day);
-  //display.print(F(" "));
-  TimeStampString += F(" ");
-  if(rtc_hour<10) {
-    //display.print(F("0"));
-    TimeStampString += F("0");
-  }
-  //display.print(rtc_hour);
-  TimeStampString += String(rtc_hour);
-  //display.print(F(":"));
-  TimeStampString += F(":");
-  if(rtc_minute<10) {
-    //display.print(F("0"));
-    TimeStampString += F("0");
-  }
-  //display.print(rtc_minute);
-  TimeStampString += String(rtc_minute);
-  //display.print(F(":"));
-  TimeStampString += F(":");
-  if(rtc_second<10) {
-    //display.print(F("0"));
-    TimeStampString += F("0");
-  }
-  //display.print(rtc_second);
-  TimeStampString += String(rtc_second);
 }
                
 bool Log_To_SD_card()
 {
   bool FileOpenSuccess = false;
   
-  String logFileName=DateStampString;
-  logFileName += F(".txt");
+  //String logFileName=DateStampString;
+  //logFileName += F(".txt");
   //open logfile for writing
   
   File dataFile = SD.open(logFileName, FILE_WRITE);
@@ -252,14 +238,14 @@ bool Log_To_SD_card()
   }
   
   if (FileOpenSuccess) {
-    /*
+    
     dataFile.print(TimeStampString);
     dataFile.print(F(";"));
     dataFile.print(VoltString);
     dataFile.print(F(";"));
     dataFile.print(CurrentString);
     dataFile.println(F(";"));
-    */
+    
     dataFile.close();
   }
   
