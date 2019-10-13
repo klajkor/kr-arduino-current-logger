@@ -21,12 +21,13 @@
 */
 
 #include <Arduino.h>
+#include <avr/pgmspace.h>
 #include <math.h>
 #include <uRTCLib.h>
 #include <SD.h>
 #include <SPI.h>
 #include <Wire.h>
-#include <INA219.h>
+#include <Adafruit_INA219.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 
@@ -40,7 +41,7 @@ const int OLED_I2C_ADDR = 0x3C; // Address 0x3C for 128x32
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
 // Current and voltage sensor
-INA219 monitor;
+Adafruit_INA219 ina219_monitor;
 
 // DS3231 RTC modul
 const int RTC_I2C_addr = 0x68;
@@ -62,27 +63,37 @@ uint8_t rtc_year = 0;
 
 // Current sensor variables
 float f_BusVoltage_V;
-float f_ShuntCurrent_uA;
+float f_ShuntCurrent_mA;
 
 
 // General variables
-char TimeStampString[] = "2000.00.00 00:00:00";
-char DateStampString[] = "20009988";
-char logFileName[] = "20009988.txt";
-char VoltString[] ="99.999 V  ";
-char CurrentString[] = "9999.99 mA  ";
+char DateStampString[] = "2000.99.88";
+char TimeStampString[] = "00:00:00";
+char logFileName[] = "LO009988.txt";
+char logFile2[] = "L1122.txt";
+char VoltString[] = "99.999 ";
+char CurrentString[] = "9999.999 ";
+bool SD_log_enabled = false;
+File dataFile,FdataFile;
+const char dataHeader[] PROGMEM = "Date,Time,Voltage,Current";
 
 // Function definitions
 //void setup();
 //void loop();
-bool Log_To_SD_card();
+bool Log_To_SD_card(const char *_logfile);
 void setTimeStampString();
+
+int freeRam() {
+  extern int __heap_start,*__brkval;
+  int v;
+  return (int)&v - (__brkval == 0 ? (int)&__heap_start : (int) __brkval); 
+}
 
 //setup()
 void setup()
 {
   Serial.begin(115200);
-  delay(1000);
+  delay(500);
   
   // SSD1306_SWITCHCAPVCC = generate display voltage from 3.3V internally
   //display.begin(SSD1306_SWITCHCAPVCC, OLED_I2C_ADDR);
@@ -92,37 +103,87 @@ void setup()
     for(;;); // Don't proceed, loop forever
   }
   Serial.println(F(" OK"));
-  Serial.print(F("SD card init..."));
-
-  // see if the card is present and can be initialized:
-  if (!SD.begin(SDCARD_CHIP_SELECT)) {
-    Serial.println(F(" failed"));
-    // don't do anything more:
-    while (1);
-  }
-  Serial.println(F(" OK"));
-
+  display.clearDisplay();
+  display.setTextSize(1);             // Normal 1:1 pixel scale
+  display.setTextColor(WHITE);        // Draw white text
+  display.setCursor(0,0);             // Start at top-left corner
+  display.display();
+  
   Wire.begin();
   //Serial.println(F("Wire.begin done"));
-  monitor.begin();
+  ina219_monitor.begin();
   //Serial.println(F("INA219 begin done"));
   // begin calls:
   // configure() with default values RANGE_32V, GAIN_8_320MV, ADC_12BIT, ADC_12BIT, CONT_SH_BUS
   // calibrate() with default values D_SHUNT=0.1, D_V_BUS_MAX=32, D_V_SHUNT_MAX=0.2, D_I_MAX_EXPECTED=2
   // in order to work directly with ADAFruit's INA219B breakout
 
-  /*
+  Serial.print(F("SD card "));
+  display.println(F("SD card "));
+
+  // see if the card is present and can be initialized:
+  if (!SD.begin(SDCARD_CHIP_SELECT)) {
+    Serial.println(F(" failed"));
+    display.println(F(" failed"));
+    SD_log_enabled = false;
+  }
+  else {
+    SD_log_enabled = true;
+    Serial.println(F(" OK"));
+    display.println(F(" OK"));    
+  }
+  display.display();
+  delay(500);
+  setTimeStampString();
+  if(SD.exists(logFileName)) {
+    //delete the logfile
+    Serial.print(logFileName);
+    Serial.println(F(" - delete"));
+    if(SD.remove(logFileName)) {
+      Serial.println(F("Done"));
+    }
+    else {
+      Serial.println(F("Delete failed!"));
+    }
+
+  }
+  //writing the header-1
+  Serial.print(F("Writing header-1 to "));
+  Serial.println(logFileName);
+  dataFile = SD.open(logFileName, FILE_WRITE);
+  if (dataFile) {
+    dataFile.println(dataHeader);
+    dataFile.close();
+    Serial.println(F("header-1 written"));
+    display.println(F("Header-1 OK"));
+  }
+  else {
+    Serial.println(F("Failed!"));
+    display.println(F("Header-1 failed"));    
+  }
+  display.display();
+  delay(500);
+  //writing the header-2
+  Serial.print(F("Writing header-2 to "));
+  //Serial.println(logFileName);
+  Serial.println(logFile2);
+  FdataFile = SD.open(logFile2, FILE_WRITE);
+  if (FdataFile) {
+    FdataFile.println(dataHeader);
+    FdataFile.close();
+    Serial.println(F("header written"));
+    display.println(F("Header-2 OK"));
+  }
+  else {
+    Serial.println(F("Failed!"));
+    display.println(F("Header-2 failed"));  
+  }
+  Serial.print(F("Free SRAM = "));
+  Serial.println(freeRam());
+  display.display();
+  delay(2500);
   display.clearDisplay();
-  display.display();
-  display.setTextSize(1);             // Normal 1:1 pixel scale
-  display.setTextColor(WHITE);        // Draw white text
-  display.setCursor(0,0);             // Start at top-left corner
-  display.display();
-  display.println(F("Init done"));
-  */
-  delay(200);
-  display.clearDisplay();
-  display.display();
+  display.display();  
 }
 
 void loop()
@@ -136,19 +197,23 @@ void loop()
   display.setCursor(0,0);             // Start at top-left corner
   
   //display time stamp
+  Serial.print(DateStampString);
+  Serial.print(F(" "));
+  Serial.print(TimeStampString);
+  Serial.print(F(" "));
+  display.print(DateStampString);
+  display.print(F(" "));
   display.println(TimeStampString);
-  Serial.println(TimeStampString);
-  //Serial.println(DateStampString);
-  Serial.println(logFileName);
+  //Serial.println(logFileName);
 
   //measure voltage and current
-  f_ShuntCurrent_uA=monitor.shuntCurrent();
-  f_BusVoltage_V=monitor.busVoltage();
+  f_ShuntCurrent_mA=ina219_monitor.getCurrent_mA();
+  f_BusVoltage_V=ina219_monitor.getBusVoltage_V();
   
   //convert to text
-  dtostrf((f_ShuntCurrent_uA*1000),8,3,CurrentString);
+  dtostrf((f_ShuntCurrent_mA),8,3,CurrentString);
   dtostrf(f_BusVoltage_V,6,3,VoltString);
-  //CurrentString=String(f_ShuntCurrent_uA*1000, 4);
+  //CurrentString=String(f_ShuntCurrent_mA*1000, 4);
   //CurrentString+=F(" mA");
   //VoltString="";
   //VoltString=String(f_BusVoltage_V,4);
@@ -156,7 +221,7 @@ void loop()
   
   //display current
   Serial.print(CurrentString);
-  Serial.println(F(" mA"));
+  Serial.print(F(" mA "));
   display.print(CurrentString);
   display.println(F(" mA"));
 
@@ -168,15 +233,23 @@ void loop()
 
   display.display();
   
-  Serial.print(F("SD log..."));
-  if (Log_To_SD_card()) {
-    Serial.println(F(" OK"));
-  }
-  else {
-    Serial.println(F(" failed!"));
+  if(SD_log_enabled) {
+    Serial.print(F("SD log: "));
+    if (Log_To_SD_card(logFile2)) {
+      Serial.println(F(" OK"));
+      display.print(F("SD log OK"));
+    }
+    else {
+      Serial.println(F(" failed!"));
+      display.print(F("SD log failed"));
+    }
+    display.display();
   }
 
-  delay(5000);
+  Serial.print(F("Free SRAM = "));
+  Serial.println(freeRam());
+  
+  delay(9500);
 
 }
 
@@ -191,62 +264,60 @@ void setTimeStampString()
   rtc_month = rtc.month();
   rtc_year = rtc.year();
 
-  TimeStampString[2] = (char) ((rtc_year / 10)+0x30);
-  TimeStampString[3] = (char) ((rtc_year % 10)+0x30);
-  DateStampString[2] = TimeStampString[2];
-  DateStampString[3] = TimeStampString[3];
-  logFileName[2] = TimeStampString[2];
-  logFileName[3] = TimeStampString[3];
-  TimeStampString[5] = (char) ((rtc_month / 10)+0x30);
-  TimeStampString[6] = (char) ((rtc_month % 10)+0x30);
-  DateStampString[4] = TimeStampString[5];
-  DateStampString[5] = TimeStampString[6];
-  logFileName[4] = TimeStampString[5];
-  logFileName[5] = TimeStampString[6];
-  TimeStampString[8] = (char) ((rtc_day / 10)+0x30);
-  TimeStampString[9] = (char) ((rtc_day % 10)+0x30);
-  DateStampString[6] = TimeStampString[8];
-  DateStampString[7] = TimeStampString[9];
-  logFileName[6] = TimeStampString[8];
-  logFileName[7] = TimeStampString[9];
+  DateStampString[2] = (char) ((rtc_year / 10)+0x30);
+  DateStampString[3] = (char) ((rtc_year % 10)+0x30);
+  logFileName[2] = DateStampString[2];
+  logFileName[3] = DateStampString[3];
+  DateStampString[5] = (char) ((rtc_month / 10)+0x30);
+  DateStampString[6] = (char) ((rtc_month % 10)+0x30);
+  logFileName[4] = DateStampString[5];
+  logFileName[5] = DateStampString[6];
+  DateStampString[8] = (char) ((rtc_day / 10)+0x30);
+  DateStampString[9] = (char) ((rtc_day % 10)+0x30);
+  logFileName[6] = DateStampString[8];
+  logFileName[7] = DateStampString[9];
 
-  TimeStampString[11] = (char) ((rtc_hour / 10)+0x30);
-  TimeStampString[12] = (char) ((rtc_hour % 10)+0x30);
-  TimeStampString[14] = (char) ((rtc_minute / 10)+0x30);
-  TimeStampString[15] = (char) ((rtc_minute % 10)+0x30);
-  TimeStampString[17] = (char) ((rtc_second / 10)+0x30);
-  TimeStampString[18] = (char) ((rtc_second % 10)+0x30);
+  TimeStampString[0] = (char) ((rtc_hour / 10)+0x30);
+  TimeStampString[1] = (char) ((rtc_hour % 10)+0x30);
+  TimeStampString[3] = (char) ((rtc_minute / 10)+0x30);
+  TimeStampString[4] = (char) ((rtc_minute % 10)+0x30);
+  TimeStampString[6] = (char) ((rtc_second / 10)+0x30);
+  TimeStampString[7] = (char) ((rtc_second % 10)+0x30);
+  logFile2[1] = TimeStampString[0];
+  logFile2[2] = TimeStampString[1];
+  logFile2[3] = TimeStampString[3];
+  logFile2[4] = TimeStampString[4];
   
 }
                
-bool Log_To_SD_card()
+bool Log_To_SD_card(const char *_logfile)
 {
   bool FileOpenSuccess = false;
   
-  //String logFileName=DateStampString;
-  //logFileName += F(".txt");
-  //open logfile for writing
-  
-  File dataFile = SD.open(logFileName, FILE_WRITE);
+  //dataFile = SD.open(logFileName, FILE_WRITE);
+  dataFile = SD.open(_logfile, FILE_WRITE);
   
   // if the file is available, write to it:
+  Serial.print(_logfile);
   if (dataFile) {
     FileOpenSuccess=true;
   }
   else {
     FileOpenSuccess=false;
+    Serial.println(F(" logfile open error!"));
   }
   
   if (FileOpenSuccess) {
-    
+    Serial.println(F(" logfile opened"));
+    dataFile.print(DateStampString);
+    dataFile.print(F(","));
     dataFile.print(TimeStampString);
-    dataFile.print(F(";"));
-    dataFile.print(VoltString);
-    dataFile.print(F(";"));
-    dataFile.print(CurrentString);
-    dataFile.println(F(";"));
-    
+    //dataFile.print(",");
+    //dataFile.print(VoltString);
+    //dataFile.print(",");
+    //dataFile.println(CurrentString);
     dataFile.close();
+    Serial.println(F(" logfile closed"));
   }
   
   return FileOpenSuccess;
