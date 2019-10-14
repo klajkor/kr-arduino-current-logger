@@ -69,12 +69,11 @@ float f_ShuntCurrent_mA;
 // General variables
 char DateStampString[] = "2000.99.88";
 char TimeStampString[] = "00:00:00";
-char logFileName[] = "LO009988.txt";
-char logFile2[] = "L1122.txt";
+const char logFileName[] PROGMEM = "DATALOG.txt";
 char VoltString[] = "99.999 ";
 char CurrentString[] = "9999.999 ";
 bool SD_log_enabled = false;
-File dataFile,FdataFile;
+File dataFile;
 const char dataHeader[] PROGMEM = "Date,Time,Voltage,Current";
 
 // Function definitions
@@ -135,49 +134,23 @@ void setup()
   display.display();
   delay(500);
   setTimeStampString();
-  if(SD.exists(logFileName)) {
-    //delete the logfile
-    Serial.print(logFileName);
-    Serial.println(F(" - delete"));
-    if(SD.remove(logFileName)) {
-      Serial.println(F("Done"));
-    }
-    else {
-      Serial.println(F("Delete failed!"));
-    }
-
-  }
+  
   //writing the header-1
-  Serial.print(F("Writing header-1 to "));
+  Serial.print(F("Writing header to "));
   Serial.println(logFileName);
   dataFile = SD.open(logFileName, FILE_WRITE);
   if (dataFile) {
     dataFile.println(dataHeader);
     dataFile.close();
-    Serial.println(F("header-1 written"));
-    display.println(F("Header-1 OK"));
+    Serial.println(F("header written"));
+    display.println(F("Header OK"));
   }
   else {
     Serial.println(F("Failed!"));
-    display.println(F("Header-1 failed"));    
+    display.println(F("Header failed"));    
   }
   display.display();
   delay(500);
-  //writing the header-2
-  Serial.print(F("Writing header-2 to "));
-  //Serial.println(logFileName);
-  Serial.println(logFile2);
-  FdataFile = SD.open(logFile2, FILE_WRITE);
-  if (FdataFile) {
-    FdataFile.println(dataHeader);
-    FdataFile.close();
-    Serial.println(F("header written"));
-    display.println(F("Header-2 OK"));
-  }
-  else {
-    Serial.println(F("Failed!"));
-    display.println(F("Header-2 failed"));  
-  }
   Serial.print(F("Free SRAM = "));
   Serial.println(freeRam());
   display.display();
@@ -235,7 +208,7 @@ void loop()
   
   if(SD_log_enabled) {
     Serial.print(F("SD log: "));
-    if (Log_To_SD_card(logFile2)) {
+    if (Log_To_SD_card(logFileName)) {
       Serial.println(F(" OK"));
       display.print(F("SD log OK"));
     }
@@ -266,27 +239,17 @@ void setTimeStampString()
 
   DateStampString[2] = (char) ((rtc_year / 10)+0x30);
   DateStampString[3] = (char) ((rtc_year % 10)+0x30);
-  logFileName[2] = DateStampString[2];
-  logFileName[3] = DateStampString[3];
   DateStampString[5] = (char) ((rtc_month / 10)+0x30);
   DateStampString[6] = (char) ((rtc_month % 10)+0x30);
-  logFileName[4] = DateStampString[5];
-  logFileName[5] = DateStampString[6];
   DateStampString[8] = (char) ((rtc_day / 10)+0x30);
   DateStampString[9] = (char) ((rtc_day % 10)+0x30);
-  logFileName[6] = DateStampString[8];
-  logFileName[7] = DateStampString[9];
-
+  
   TimeStampString[0] = (char) ((rtc_hour / 10)+0x30);
   TimeStampString[1] = (char) ((rtc_hour % 10)+0x30);
   TimeStampString[3] = (char) ((rtc_minute / 10)+0x30);
   TimeStampString[4] = (char) ((rtc_minute % 10)+0x30);
   TimeStampString[6] = (char) ((rtc_second / 10)+0x30);
   TimeStampString[7] = (char) ((rtc_second % 10)+0x30);
-  logFile2[1] = TimeStampString[0];
-  logFile2[2] = TimeStampString[1];
-  logFile2[3] = TimeStampString[3];
-  logFile2[4] = TimeStampString[4];
   
 }
                
