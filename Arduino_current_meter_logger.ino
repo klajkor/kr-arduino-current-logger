@@ -69,17 +69,19 @@ float f_ShuntCurrent_mA;
 // General variables
 char DateStampString[] = "2000.99.88";
 char TimeStampString[] = "00:00:00";
-const char logFileName[] PROGMEM = "DATALOG.txt";
+const char logFileName[] = "log.txt";
 char VoltString[] = "99.999 ";
 char CurrentString[] = "9999.999 ";
 bool SD_log_enabled = false;
+
 File dataFile;
-const char dataHeader[] PROGMEM = "Date,Time,Voltage,Current";
+
 
 // Function definitions
 //void setup();
 //void loop();
-bool Log_To_SD_card(const char *_logfile);
+//bool Log_To_SD_card(const char *_logfile);
+bool Log_To_SD_card();
 void setTimeStampString();
 
 int freeRam() {
@@ -136,19 +138,25 @@ void setup()
   setTimeStampString();
   
   //writing the header-1
+  /*
   Serial.print(F("Writing header to "));
-  Serial.println(logFileName);
+  Serial.print(logFileName);
+  Serial.print(F(" / "));
+  Serial.println(FILE_WRITE);
   dataFile = SD.open(logFileName, FILE_WRITE);
   if (dataFile) {
-    dataFile.println(dataHeader);
+    dataFile.println(F("Date,Time,Voltage,Current"));
     dataFile.close();
     Serial.println(F("header written"));
     display.println(F("Header OK"));
   }
   else {
+    dataFile.println(F("Date,Time,Voltage,Current"));
+    dataFile.close();    
     Serial.println(F("Failed!"));
     display.println(F("Header failed"));    
   }
+  */
   display.display();
   delay(500);
   Serial.print(F("Free SRAM = "));
@@ -208,7 +216,7 @@ void loop()
   
   if(SD_log_enabled) {
     Serial.print(F("SD log: "));
-    if (Log_To_SD_card(logFileName)) {
+    if (Log_To_SD_card()) {
       Serial.println(F(" OK"));
       display.print(F("SD log OK"));
     }
@@ -252,16 +260,17 @@ void setTimeStampString()
   TimeStampString[7] = (char) ((rtc_second % 10)+0x30);
   
 }
-               
-bool Log_To_SD_card(const char *_logfile)
+
+//bool Log_To_SD_card(const char *_logfile)
+bool Log_To_SD_card()
 {
   bool FileOpenSuccess = false;
   
-  //dataFile = SD.open(logFileName, FILE_WRITE);
-  dataFile = SD.open(_logfile, FILE_WRITE);
+  dataFile = SD.open(logFileName, FILE_WRITE);
+  //dataFile = SD.open(_logfile, FILE_WRITE);
   
   // if the file is available, write to it:
-  Serial.print(_logfile);
+  Serial.print(logFileName);
   if (dataFile) {
     FileOpenSuccess=true;
   }
@@ -275,10 +284,11 @@ bool Log_To_SD_card(const char *_logfile)
     dataFile.print(DateStampString);
     dataFile.print(F(","));
     dataFile.print(TimeStampString);
-    //dataFile.print(",");
-    //dataFile.print(VoltString);
-    //dataFile.print(",");
-    //dataFile.println(CurrentString);
+    dataFile.print(F(","));
+    dataFile.print(VoltString);
+    dataFile.print(F(",V,"));
+    dataFile.print(CurrentString);
+    dataFile.println(F("mA"));
     dataFile.close();
     Serial.println(F(" logfile closed"));
   }
