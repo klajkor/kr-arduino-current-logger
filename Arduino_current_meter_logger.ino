@@ -21,25 +21,28 @@
 */
 
 #include <Arduino.h>
+#include <avr/pgmspace.h>
+#include <math.h>
 #include <uRTCLib.h>
 #include <SD.h>
 #include <SPI.h>
 #include <Wire.h>
-#include <INA219.h>
-#include <Adafruit_GFX.h>
-#include <Adafruit_SSD1306.h>
+#include <Adafruit_INA219.h>
+#include "SSD1306Ascii.h"
+#include "SSD1306AsciiWire.h"
 
 /* Declarations and initializations */
 
 // Declaration for an SSD1306 display connected to I2C (SDA, SCL pins)
-#define OLED_RESET     4 // Reset pin # (or -1 if sharing Arduino reset pin)
+#define OLED_RESET     -1 // Reset pin # (or -1 if sharing Arduino reset pin)
 #define SCREEN_WIDTH 128 // OLED display width, in pixels
 #define SCREEN_HEIGHT 32 // OLED display height, in pixels
 const int OLED_I2C_ADDR = 0x3C; // Address 0x3C for 128x32
-Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+
+SSD1306AsciiWire display;
 
 // Current and voltage sensor
-INA219 monitor;
+Adafruit_INA219 ina219_monitor;
 
 // DS3231 RTC modul
 const int RTC_I2C_addr = 0x68;
@@ -60,60 +63,149 @@ uint8_t rtc_month = 0;
 uint8_t rtc_year = 0;
 
 // Current sensor variables
-float f_BusVoltage;
+float f_BusVoltage_V;
+float f_ShuntCurrent_mA;
 
 
 // General variables
-String TimeStampString = "";
-String VoltString = "";
-String CurrentString = "";
+char DateStampString[] = "2000.99.88";
+char TimeStampString[] = "00:00:00";
+char logFileName[] = "mmddHHMM.txt";
+char VoltString[] = "99.999 ";
+char CurrentString[] = "9999.999 ";
+bool SD_log_enabled = false;
 
+File dataFile;
+
+
+// Function definitions
+//void setup();
+//void loop();
+//bool Log_To_SD_card(const char *_logfile);
+bool Log_To_SD_card();
+void setTimeStampString();
+
+
+//setup()
 void setup()
 {
   Serial.begin(115200);
+  Wire.begin();
+  delay(100);
   
   // SSD1306_SWITCHCAPVCC = generate display voltage from 3.3V internally
   //display.begin(SSD1306_SWITCHCAPVCC, OLED_I2C_ADDR);
-  
-  if(!display.begin(SSD1306_SWITCHCAPVCC, OLED_I2C_ADDR)) {
-    Serial.println(F("SSD1306 allocation failed - HALTED"));
-    for(;;); // Don't proceed, loop forever
-  }
-  
-  Serial.println(F("SSD1306 init ok"));
-  Serial.print(F("SD card init..."));
+  Serial.print(F("SSD1306 init..."));
+  #if OLED_RESET >= 0
+  display.begin(&Adafruit128x32, I2C_ADDRESS, RST_PIN);
+  #else // RST_PIN >= 0
+  display.begin(&Adafruit128x32, OLED_I2C_ADDR);
+  #endif // RST_PIN >= 0
 
-  // see if the card is present and can be initialized:
-  if (!SD.begin(SDCARD_CHIP_SELECT)) {
-    Serial.println(F("Card failed, or not present -> HALTED"));
-    // don't do anything more:
-    while (1);
-  }
-  Serial.println(F("done."));
+  display.setFont(Adafruit5x7);
 
-  Wire.begin();
-  Serial.println(F("Wire.begin done"));
-  monitor.begin();
-  Serial.println(F("monitor.begin done"));
+  Serial.println(F(" OK"));
+  display.clear();
+  display.set1X();
+  display.setRow(0);
+  
+  
+  ina219_monitor.begin();
+  //Serial.println(F("INA219 begin done"));
   // begin calls:
   // configure() with default values RANGE_32V, GAIN_8_320MV, ADC_12BIT, ADC_12BIT, CONT_SH_BUS
   // calibrate() with default values D_SHUNT=0.1, D_V_BUS_MAX=32, D_V_SHUNT_MAX=0.2, D_I_MAX_EXPECTED=2
   // in order to work directly with ADAFruit's INA219B breakout
 
-  display.clearDisplay();
-  display.display();
-  display.setTextSize(1);             // Normal 1:1 pixel scale
-  display.setTextColor(WHITE);        // Draw white text
-  display.setCursor(0,0);             // Start at top-left corner
-  display.display();
-  delay(200);
-  display.clearDisplay();
-  display.display();
+  Serial.print(F("SD card "));
+  display.println(F("SD card "));
 
-}
+  // see if the card is present and can be initialized:
+  if (!SD.begin(SDCARD_CHIP_SELECT)) {
+    Serial.println(F(" failed"));
+    display.println(F(" failed"));
+    SD_log_enabled = false;
+  }
+  else {
+    SD_log_enabled = true;
+    Serial.println(F(" OK"));
+    display.println(F(" OK"));    
+  }
+  delay(500);
+  setTimeStampString();
+  
+  delay(2500);
+  display.clear();
+
+} 
 
 void loop()
 {
+  setTimeStampString();
+  
+  // clear display
+  //display.clear();
+  //display.set1X();
+  display.setRow(0);
+  display.setCol(0);
+  
+  //display time stamp
+  Serial.print(DateStampString);
+  Serial.print(F(" "));
+  Serial.print(TimeStampString);
+  Serial.print(F(" "));
+  display.print(DateStampString);
+  display.print(F(" "));
+  display.println(TimeStampString);
+  //Serial.println(logFileName);
+
+  //measure voltage and current
+  f_ShuntCurrent_mA=ina219_monitor.getCurrent_mA();
+  f_BusVoltage_V=ina219_monitor.getBusVoltage_V();
+  
+  //convert to text
+  dtostrf((f_ShuntCurrent_mA),8,3,CurrentString);
+  dtostrf(f_BusVoltage_V,6,3,VoltString);
+  //CurrentString=String(f_ShuntCurrent_mA*1000, 4);
+  //CurrentString+=F(" mA");
+  //VoltString="";
+  //VoltString=String(f_BusVoltage_V,4);
+  //VoltString+=F(" V");
+  
+  //display volt
+  Serial.print(VoltString);
+  Serial.print(F(" V"));
+  display.print(VoltString);
+  display.println(F(" V"));
+
+  //display current
+  Serial.print(CurrentString);
+  Serial.println(F(" mA "));
+  display.print(CurrentString);
+  display.println(F(" mA"));
+
+  if(SD_log_enabled) {
+    Serial.print(F("SD log: "));
+    Serial.print(logFileName);
+    if (Log_To_SD_card()) {
+      Serial.println(F(" OK"));
+      display.print(F("SD log OK"));
+    }
+    else {
+      Serial.println(F(" failed!"));
+      display.print(F("SD log failed"));      
+    }
+    //display.print(logFileName);
+    //display.display();
+  }
+
+  delay(9500);
+
+}
+
+void setTimeStampString()
+{
+  // get time stamp, convert to a string
   rtc.refresh();
   rtc_second = rtc.second();
   rtc_minute = rtc.minute();
@@ -121,99 +213,63 @@ void loop()
   rtc_day = rtc.day();
   rtc_month = rtc.month();
   rtc_year = rtc.year();
+
+  DateStampString[2] = (char) ((rtc_year / 10)+0x30);
+  DateStampString[3] = (char) ((rtc_year % 10)+0x30);
+  DateStampString[5] = (char) ((rtc_month / 10)+0x30);
+  DateStampString[6] = (char) ((rtc_month % 10)+0x30);
+  DateStampString[8] = (char) ((rtc_day / 10)+0x30);
+  DateStampString[9] = (char) ((rtc_day % 10)+0x30);
   
-  TimeStampString = F("20");
-  TimeStampString += String(rtc_year);
-  TimeStampString += F(".");
-  //TimeStampString = TimeStampString + String(rtc_year) + F(".");
-  //display.print(F("20"));
-  //display.print(rtc_year);
-  //display.print(F("."));
-  if(rtc_month<10) {
-    //display.print(F("0"));
-    TimeStampString += F("0");
-  }
-  TimeStampString += String(rtc_month);
-  //display.print(rtc_month);
-  TimeStampString += F(".");
-  //display.print(F("."));
-  if(rtc_day<10) {
-    //display.print(F("0"));
-    TimeStampString += F("0");
-  }
-  //display.print(rtc_day);
-  TimeStampString += String(rtc_day);
-  //display.print(F(" "));
-  TimeStampString += F(" ");
-  if(rtc_hour<10) {
-    //display.print(F("0"));
-    TimeStampString += F("0");
-  }
-  //display.print(rtc_hour);
-  TimeStampString += String(rtc_hour);
-  //display.print(F(":"));
-  TimeStampString += F(":");
-  if(rtc_minute<10) {
-    //display.print(F("0"));
-    TimeStampString += F("0");
-  }
-  //display.print(rtc_minute);
-  TimeStampString += String(rtc_minute);
-  //display.print(F(":"));
-  TimeStampString += F(":");
-  if(rtc_second<10) {
-    //display.print(F("0"));
-    TimeStampString += F("0");
-  }
-  //display.print(rtc_second);
-  TimeStampString += String(rtc_second);
+  TimeStampString[0] = (char) ((rtc_hour / 10)+0x30);
+  TimeStampString[1] = (char) ((rtc_hour % 10)+0x30);
+  TimeStampString[3] = (char) ((rtc_minute / 10)+0x30);
+  TimeStampString[4] = (char) ((rtc_minute % 10)+0x30);
+  TimeStampString[6] = (char) ((rtc_second / 10)+0x30);
+  TimeStampString[7] = (char) ((rtc_second % 10)+0x30);
+
+  logFileName[0] = DateStampString[0];
+  logFileName[1] = DateStampString[1];
+  logFileName[2] = DateStampString[2];
+  logFileName[3] = DateStampString[3];
+  logFileName[4] = DateStampString[5];
+  logFileName[5] = DateStampString[6];
+  logFileName[6] = DateStampString[8];
+  logFileName[7] = DateStampString[9];
   
-  // clear display
-  display.clearDisplay();
-  display.setTextSize(1);             // Normal 1:1 pixel scale
-  display.setTextColor(WHITE);        // Draw white text
-  display.setCursor(0,0);             // Start at top-left corner
-  display.println(TimeStampString);
+  
+}
 
-  Serial.println(TimeStampString);
-
-  Serial.print(F("raw shunt voltage: "));
-  Serial.println(monitor.shuntVoltageRaw());
-
-  Serial.print(F("raw bus voltage:   "));
-  Serial.println(monitor.busVoltageRaw());
-
-  Serial.println(F("--"));
-
-  Serial.print(F("shunt voltage: "));
-  Serial.print(monitor.shuntVoltage() * 1000, 4);
-  Serial.println(F(" mV"));
-
-  Serial.print(F("shunt current: "));
-  Serial.print(monitor.shuntCurrent() * 1000, 4);
-  Serial.println(F(" mA"));
-
-  //display.print(F("Current: "));
-  display.print(monitor.shuntCurrent()*1000, 4);
-  display.println(F(" mA"));
-
-  Serial.print(F("bus voltage:   "));
-  Serial.print(monitor.busVoltage(), 4);
-  Serial.println(F(" V"));
-
-  //display.print(F("Bus V: "));
-  display.print(monitor.busVoltage(), 4);
-  display.println(F(" V"));
-
-  Serial.print(F("bus power:     "));
-  Serial.print(monitor.busPower() * 1000, 4);
-  Serial.println(F(" mW"));
-
-  Serial.println(F(" "));
-  Serial.println(F(" "));
-
-  display.display();
-
-  delay(5000);
-
+//bool Log_To_SD_card(const char *_logfile)
+bool Log_To_SD_card()
+{
+  bool FileOpenSuccess = false;
+  
+  dataFile = SD.open(logFileName, FILE_WRITE);
+  //dataFile = SD.open(_logfile, FILE_WRITE);
+  
+  // if the file is available, write to it:
+  if (dataFile) {
+    FileOpenSuccess=true;
+  }
+  else {
+    FileOpenSuccess=false;
+    Serial.println(F(" logfile open error!"));
+  }
+  
+  if (FileOpenSuccess) {
+    dataFile.print(DateStampString);
+    dataFile.print(F(","));
+    dataFile.print(TimeStampString);
+    dataFile.print(F(","));
+    dataFile.print(VoltString);
+    dataFile.print(F(",V,"));
+    dataFile.print(CurrentString);
+    dataFile.print(F(","));
+    dataFile.println(F("mA"));
+    dataFile.close();
+    //Serial.println(F(" logfile closed"));
+  }
+  
+  return FileOpenSuccess;
 }
